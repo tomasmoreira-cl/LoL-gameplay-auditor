@@ -1,4 +1,4 @@
-# 🏆 Auditoria de Gameplay en League of Legends: Optimización de Rendimiento basada en datos
+# 🏆 Auditoría de Gameplay en League of Legends: Optimización de Rendimiento basada en datos
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![Status](https://img.shields.io/badge/Status-Phase%202%20Completed-green)
