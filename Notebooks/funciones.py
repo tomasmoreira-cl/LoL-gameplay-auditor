@@ -81,46 +81,28 @@ def test_mann_whitney(df, col_metrica, col_grupo, val_grupo1=1, val_grupo0=0, al
     
 # -------------------------------------------------------------------------------------------
 
-def scaler(df, X_train, X_test, col_excluidas: list = []):
+def scaler(X_train, X_test, col_excluidas: list = []):
     
     '''
-    Toma X_test y X_train para scalarlos según las columnas que nosotros indiquemos
-    que se aplique. Se pide excluir las columnas que sean categóricas
+    X_train: DataFrame de X para el entrenamiento.
+    X_test: DataFrame de X para el test.
+    col_excluidas: Todas las columnas que no se deben scalar de X train y X test.
+    
+    Toma X_test y X_train para scalar las columnas que nosotros indiquemos previamente. 
+    Se debe excluir las columnas que sean categóricas.
     '''
-    df = df.drop(columns = col_excluidas)
-    print("\n📋 Columnas del DataFrame:")
-    for i, col in enumerate(df.columns):
-        print(f"{i}: {col}")
-    
-    # Pedir al usuario los índices a excluir
-    indices_str = input("\nIngresa los índices de las columnas que NO quieres escalar, separados por comas: ")
-    
-    try:
-        indices_excluir = [int(i.strip()) for i in indices_str.split(",") if i.strip().isdigit()]
-    except:
-        print("❌ Índices inválidos. Intenta de nuevo.")
-        return df
-
-    # Determinar nombres de columnas a excluir
-    columnas_excluir = df.columns[indices_excluir]
-    columnas_incluir = df.columns.difference(columnas_excluir)
-
-    # Escalar solo columnas incluidas
-    df_scaled = df.copy()
+    # Guardamos los nombres de columnas a incluir en el scaler
+    columnas_incluir = X_train.columns.difference(col_excluidas)
+    X_train_scaled = X_train.copy()
+    X_test_scaled = X_test.copy()
+    # Escalamos X_test y X_train
     sc = StandardScaler()
-    X_train[columnas_incluir] = sc.fit_transform(X_train[columnas_incluir])
-    X_test[columnas_incluir] = sc.transform(X_test[columnas_incluir])
+    X_train_scaled[columnas_incluir] = sc.fit_transform(X_train_scaled[columnas_incluir])
+    X_test_scaled[columnas_incluir] = sc.transform(X_test_scaled[columnas_incluir]) # Solo aplicamos transform para evitar leak de datos.
 
-    if indices_str == '':
-        print("No se ingresaron columnas para exluciur, se excluyeron la columnas con anterioridad")
-    else:
-        print("Columnas excluidas (sin escalar):", list(columnas_excluir))
-        
-    print("\nColumnas escaladas:", list(columnas_incluir))
+    print(f'Se escalaron las siguientes columnas {list(columnas_incluir)}')
 
-
-    return X_train, X_test
-
+    return X_train_scaled, X_test_scaled
 
 #---------------------------------------------------------------
 def obtener_pares_correlacionados(df, umbral=0.7):
@@ -225,48 +207,35 @@ def hora_to_datetime(df,columna_datetime):
 
     return df
 #---------------------------------------------------------------           
-def borrar_atipicos_IQR(data, col_select=None,ignore_umbral=False):
-    '''
-    Calcula los límites inferiores y superiores de una columna de un dataframe 
-    usando el IQR, muestra el número de datos atípicos y el porcentaje, y elimina los 
-    registros con valores atípicos si el porcentaje es menor al 5%. También excluye las 
-    columnas especificadas en 'drop_columns' de la eliminación.
-    ''' 
-    data = data.copy()
-    col_select = list(col_select)
-    if col_select is None:  
-        col_df = data.columns
-        i = 0
-        print("¿Cuáles columnas usarás para el análisis?")
-        for col in col_df:
-            print(f"{i}: {col} de tipo --> {data[col].dtype}")
-            i += 1
-        seleccion = input("Ingrese los índices de las columnas que desea seleccionar (separados por comas)")
+def borrar_atipicos_IQR(data, col_select: 'lista'=None,ignore_umbral=False):
     
-        # Convertir la entrada del usuario en una lista de índices
-        indices_seleccionados = [int(idx) for idx in seleccion.split(',')]
-        
-        # Crear una nueva lista con las columnas seleccionadas
-        columnas_seleccionadas = [col_df[idx] for idx in indices_seleccionados]
-        
-        # Mostrar las columnas seleccionadas
-        print("Columnas seleccionadas:")
-        print(columnas_seleccionadas)
-        
+    '''
+    Data: DataFrame.
+    col_select: Columna del dataframe para quitar valores atípicos. (lista)
+    ignore_umbral: ignorar o no umbral del 5% de los datos para decidir si eliminarlos o no.
+    
+    Calcula los límites inferiores y superiores de las columnas indicadas de un dataframe 
+    usando IQR, muestra el número de datos atípicos y el porcentaje de datos respecto al total, 
+    y elimina los registros con valores atípicos si el porcentaje es menor al 5% (si ingore_umbral es True, solo los borra).
+    '''
+    
+    data = data.copy()
+
+    # Aseguramos que sea una lista para poder iterar, incluso si es solo una columna
+    if col_select is None:
+        col_select = [] # O manejar error
     else:
-        if all(isinstance(i, int) for i in col_select):
-            columnas_seleccionadas = [data.columns[i] for i in col_select]
-        else:
-            columnas_seleccionadas = col_select 
+        col_select = list(col_select)
+    
+    # Mostrar las columnas seleccionadas
+    print("Columnas seleccionadas:")
+    print(col_select)
+    print("Revisando valores atípicos...")
         
-        # Mostrar las columnas seleccionadas
-        print("Columnas seleccionadas:")
-        print(columnas_seleccionadas)
-              
     resultados = []  # Lista para almacenar los resultados por columna
     
     # Itera sobre todas las columnas que no están en 'drop_columns'
-    for columna in columnas_seleccionadas:
+    for columna in col_select:
         Q1 = data[columna].quantile(0.25)
         Q3 = data[columna].quantile(0.75)
         IQR = Q3 - Q1
@@ -275,11 +244,11 @@ def borrar_atipicos_IQR(data, col_select=None,ignore_umbral=False):
         ls = Q3 + 1.5 * IQR  # Límite superior
 
         # Filtra los datos no atípicos para esta columna
-        registros_atipicos = data[(data[columna] < li) | (data[columna] > ls)]
-        total_atipicos_col = len(registros_atípicos)  # Registros atípicos
-        percent_atipicos_col = (total_atipicos_col / len(data[columna])) * 100
-
-        print(f"\nEl total de datos atípicos en '{columna}' es: {total_atipicos_col}. Representan el {percent_atipicos_col:.3f}% de los datos.")
+        registros_atipicos = data[(data[columna] < li) | (data[columna] > ls)]  # DF de los datos atípicos
+        total_atipicos_col = len(registros_atipicos)                            # Cantidad registros atípicos
+        percent_atipicos_col = (total_atipicos_col / len(data[columna])) * 100  # Porcentaje de valores atípicos respecto al total de datos
+    
+        print(f"\nEl total de datos atípicos en '{columna}' es: {total_atipicos_col}. Representan el {percent_atipicos_col:.2f}% de los datos.")
         
         # Se evalua si se ingora o no el umbral del 5% para saber si se borran o no los valores outliers
         if ignore_umbral == True:
@@ -294,10 +263,15 @@ def borrar_atipicos_IQR(data, col_select=None,ignore_umbral=False):
                 print("El porcentaje de atípicos es mayor o igual al 5%. No se eliminaron registros.")
 
         # Almacena los resultados obtenidos
-        resultados.append({"nombre_columna": columna, "datos_atipicos": total_atipicos_col, "porcentaje": percent_atipicos_col})
+        resultados.append({"nombre_columna": columna, 
+                           "datos_atipicos": total_atipicos_col, 
+                           "porcentaje": percent_atipicos_col,
+                           "limite_inf": li,
+                           "limite_sup": ls})
+    resultados_atipicos= pd.DataFrame(resultados)
 
     # Devuelve el data frame eliminando los atípicos si es que los hay
-    return registros_atipicos, data
+    return resultados_atipicos, data 
 #--------------------------------------------------------------- 
 
 def clasificar(cadena):
